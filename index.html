@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MeryAlexChat - Enhanced Chat</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background: #e9ecef;
+    margin: 0; padding: 20px;
+  }
+  h2 {
+    text-align: center;
+    margin-bottom: 10px;
+  }
+  #chat-box {
+    background: #fff7f0;
+    border: 1px solid #ccc;
+    height: 400px;
+    overflow-y: auto;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    border-radius: 8px;
+  }
+  .message {
+    display: flex;
+    margin: 5px 0;
+    max-width: 70%;
+  }
+  .message.received {
+    justify-content: flex-start;
+  }
+  .message.sent {
+    justify-content: flex-end;
+    align-self: flex-end;
+  }
+  .bubble {
+    background: #a0522d; /* قهوه‌ای */
+    color: white;
+    padding: 8px 12px;
+    border-radius: 15px;
+    position: relative;
+    word-wrap: break-word;
+  }
+  .message.sent .bubble {
+    background: #a0522d;
+    border-bottom-right-radius: 0;
+  }
+  .message.received .bubble {
+    background: #d2b48c;
+    color: black;
+    border-bottom-left-radius: 0;
+  }
+  .avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    margin: 0 8px;
+    object-fit: cover;
+  }
+  #input-area {
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  #message-input {
+    flex: 1;
+    padding: 10px;
+    font-size: 16px;
+  }
+  button {
+    padding: 10px 15px;
+    font-size: 14px;
+    cursor: pointer;
+    background-color: #c79a6e;
+    border: none;
+    border-radius: 5px;
+    color: white;
+    transition: background-color 0.3s ease;
+  }
+  button:hover {
+    background-color: #a26f3d;
+  }
+  button:active {
+    background-color: #80592c;
+  }
+  input[type="file"] {
+    display: none;
+  }
+  audio {
+    max-width: 200px;
+    border-radius: 8px;
+    outline: none;
+  }
+  #profile-section {
+    text-align: center;
+    margin-bottom: 15px;
+  }
+  #profile-pic {
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #a0522d;
+    cursor: pointer;
+  }
+  #profile-upload-label {
+    display: inline-block;
+    margin-top: 5px;
+    cursor: pointer;
+    color: #a26f3d;
+    font-weight: bold;
+  }
+</style>
+</head>
+<body>
+<h2>Mery & Alex Private Chat</h2>
+
+<div id="profile-section">
+  <img id="profile-pic" src="" alt="Your Profile Picture" title="Click to change your profile picture" />
+  <br />
+  <label id="profile-upload-label" for="profile-upload">Change Profile Picture</label>
+  <input type="file" id="profile-upload" accept="image/*" />
+</div>
+
+<div id="chat-box"></div>
+
+<div id="input-area">
+  <input type="text" id="message-input" placeholder="Type your message..." />
+  <button onclick="sendMessage()">Send</button>
+  <button onclick="document.getElementById('file-input').click()">Send Image</button>
+  <button id="record-btn">Start Recording</button>
+  <input type="file" id="file-input" accept="image/*" />
+</div>
+
+<script>
+  // کاربران و عکس پیش‌فرض اگر عکس پروفایل آپلود نشده باشد
+  const users = {
+    Mery: 'https://i.pravatar.cc/40?u=Mery',
+    Alex: 'https://i.pravatar.cc/40?u=Alex'
+  };
+
+  // فرض کنیم کاربر فعلی Mery هست
+  const currentUser = 'Mery';
+  const otherUser = currentUser === 'Mery' ? 'Alex' : 'Mery';
+
+  const chatBox = document.getElementById('chat-box');
+  const messageInput = document.getElementById('message-input');
+  const fileInput = document.getElementById('file-input');
+  const recordBtn = document.getElementById('record-btn');
+
+  const profilePic = document.getElementById('profile-pic');
+  const profileUpload = document.getElementById('profile-upload');
+
+  // بارگذاری عکس پروفایل ذخیره شده
+  function loadProfilePic() {
+    const saved = localStorage.getItem(currentUser + '-profile-pic');
+    if (saved) {
+      profilePic.src = saved;
+      users[currentUser] = saved;
+    } else {
+      profilePic.src = users[currentUser];
+    }
+  }
+  loadProfilePic();
+
+  profilePic.onclick = () => profileUpload.click();
+
+  profileUpload.onchange = () => {
+    const file = profileUpload.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      localStorage.setItem(currentUser + '-profile-pic', reader.result);
+      users[currentUser] = reader.result;
+      profilePic.src = reader.result;
+      renderMessages(); // رفرش کردن پیام‌ها برای نمایش پروفایل جدید
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // پیام‌ها رو از localStorage بارگزاری کن
+  let messages = JSON.parse(localStorage.getItem('chat-messages')) || [];
+  renderMessages();
+
+  function renderMessages() {
+    chatBox.innerHTML = '';
+    messages.forEach(msg => displayMessage(msg));
+    chatBox.scrollTop = chatBox.scrollHeight;
+  }
+
+  function displayMessage(msg) {
+    const div = document.createElement('div');
+    div.className = 'message ' + (msg.sender === currentUser ? 'sent' : 'received');
+
+    const avatar = document.createElement('img');
+    avatar.className = 'avatar';
+    avatar.src = users[msg.sender];
+    avatar.alt = msg.sender;
+
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+
+    if (msg.type === 'text') {
+      bubble.textContent = msg.content;
+    } else if (msg.type === 'image') {
+      const img = document.createElement('img');
+      img.src = msg.content;
+      img.style.maxWidth = '200px';
+      img.style.borderRadius = '8px';
+      bubble.appendChild(img);
+    } else if (msg.type === 'audio') {
+      const audio = document.createElement('audio');
+      audio.controls = true;
+      audio.src = msg.content;
+      bubble.appendChild(audio);
+    }
+
+    if (msg.sender === currentUser) {
+      div.appendChild(bubble);
+      div.appendChild(avatar);
+    } else {
+      div.appendChild(avatar);
+      div.appendChild(bubble);
+    }
+    chatBox.appendChild(div);
+    chatBox.scrollTop = chatBox.scrollHeight;
+
+    // اعلان پیام جدید برای کاربر فعلی
+    if (msg.sender !== currentUser && Notification.permission === 'granted') {
+      new Notification(`New message from ${msg.sender}`, {
+        body: msg.type === 'text' ? msg.content : msg.type === 'image' ? 'Image' : 'Audio message',
+        icon: users[msg.sender]
+      });
+    }
+  }
+
+  function saveMessages() {
+    localStorage.setItem('chat-messages', JSON.stringify(messages));
+  }
+
+  function sendMessage() {
+    const text = messageInput.value.trim();
+    if (!text) return;
+    const msg = {
+      sender: currentUser,
+      type: 'text',
+      content: text
+    };
+    messages.push(msg);
+    saveMessages();
+    displayMessage(msg);
+    messageInput.value = '';
+  }
+
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const msg = {
+        sender: currentUser,
+        type: file.type.startsWith('image/') ? 'image' : 'file',
+        content: reader.result
+      };
+      messages.push(msg);
+      saveMessages();
+      displayMessage(msg);
+    };
+    reader.readAsDataURL(file);
+    fileInput.value = '';
+  });
+
+  // ضبط صدا
+  let mediaRecorder;
+  let audioChunks = [];
+
+  recordBtn.onclick = () => {
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+      mediaRecorder.stop();
+      recordBtn.textContent = 'Start Recording';
+    } else {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        alert('Your browser does not support audio recording.');
+        return;
+      }
+      navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+        mediaRecorder = new MediaRecorder(stream
